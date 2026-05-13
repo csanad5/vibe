@@ -5,7 +5,6 @@ import json
 import logging
 from pathlib import Path
 import requests
-from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger(__name__)
@@ -36,14 +35,16 @@ def save_state(state):
     STATE_FILE.write_text(json.dumps(state))
 
 
+def strip_tags(html):
+    clean = re.sub(r"<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", clean)
+
+
 def fetch_price():
     r = requests.get(URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
-    text = soup.get_text(" ", strip=True)
-    text = re.sub(r"\s+", " ", text)
+    text = strip_tags(r.text)
 
-    # Keressük a VIBE PASS közelében lévő árat
     lowered = text.lower()
     anchors = [m.start() for m in re.finditer(r"vibe.{0,5}pass", lowered)]
 
@@ -53,7 +54,6 @@ def fetch_price():
         if 50 < val < 2000:
             prices.append((val, m.start()))
 
-    # Ha nincs "lei/lej/ron" egység, próbáljuk csak a számokkal
     if not prices:
         for m in re.finditer(r"\b(\d{3,4})\b", text):
             val = float(m.group(1))
@@ -118,13 +118,13 @@ def check():
 
 
 def main():
-    log.info("VIBE Pass árfigyelő v4 elindult.")
+    log.info("VIBE Pass árfigyelő v5 elindult.")
     log.info(f"Küszöb: {TARGET_PRICE:.0f} lei | Ellenőrzés: {CHECK_INTERVAL}s")
     if not BOT_TOKEN or not CHAT_ID:
         log.error("HIBA: Hiányzó TELEGRAM_BOT_TOKEN vagy TELEGRAM_CHAT_ID!")
         return
     send_telegram(
-        f"✅ <b>VIBE árfigyelő v4 elindult!</b>\n\n"
+        f"✅ <b>VIBE árfigyelő v5 elindult!</b>\n\n"
         f"Figyelt oldal: {URL}\n"
         f"Értesítési küszöb: {TARGET_PRICE:.0f} lei\n"
         f"Ellenőrzési időköz: {CHECK_INTERVAL} másodperc"
