@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger(__name__)
 
 URL = "https://vibefestival.ro/hu/jegyek"
-TARGET_PRICE = 249.50
+TARGET_PRICE = 260
 REFERENCE_PRICE = 499.0
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL_SECONDS", "1800"))
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
