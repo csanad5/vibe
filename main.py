@@ -83,12 +83,16 @@ def send_telegram(message):
     api = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
         requests.post(api, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "HTML"}, timeout=30)
+        log.info("Telegram üzenet elküldve.")
     except Exception as e:
         log.error(f"Telegram hiba: {e}")
 
 
 def check():
     state = load_state()
+    prev_price = state.get("last_price")
+    prev_below = state.get("was_below", False)
+
     try:
         price = fetch_price()
     except Exception as e:
@@ -100,34 +104,44 @@ def check():
         return
 
     log.info(f"Vibe Pass ár: {price:.0f} lei | Küszöb: {TARGET_PRICE:.0f} lei")
-    state["last_seen"] = price
-    save_state(state)
 
-    if price <= TARGET_PRICE:
-        if state.get("last_notified") != price:
-            msg = (f"🎉 <b>VIBE Pass ár riasztás!</b>\n\n"
-                   f"Az ár <b>{price:.0f} lei</b>-re csökkent!\n"
-                   f"Küszöb: {TARGET_PRICE:.0f} lei\n\n"
-                   f"👉 Vedd meg most: {URL}")
-            send_telegram(msg)
-            log.info("Értesítés elküldve!")
-            state["last_notified"] = price
-            save_state(state)
-    else:
-        log.info("Még nem érte el a küszöböt.")
+    currently_below = price <= TARGET_PRICE
+
+    # Ár leesett küszöb alá (átmenet: fölötte volt -> alatta van)
+    if currently_below and not prev_below:
+        msg = (f"🔥 <b>VIBE Pass ár riasztás!</b>\n\n"
+               f"Az ár <b>{price:.0f} lei</b>-re csökkent!\n"
+               f"Küszöb: {TARGET_PRICE:.0f} lei\n\n"
+               f"👉 Vedd meg most: {URL}")
+        send_telegram(msg)
+        log.info("⬇️ Ár küszöb alá esett — értesítés elküldve!")
+
+    # Ár visszament küszöb fölé (átmenet: alatta volt -> fölötte van)
+    elif not currently_below and prev_below:
+        msg = (f"📈 <b>VIBE Pass ár visszament!</b>\n\n"
+               f"Az ár <b>{price:.0f} lei</b>-re emelkedett.\n"
+               f"Küszöb: {TARGET_PRICE:.0f} lei\n\n"
+               f"Folytatom a figyelést...")
+        send_telegram(msg)
+        log.info("⬆️ Ár küszöb fölé ment vissza — értesítés elküldve!")
+
+    state["last_price"] = price
+    state["was_below"] = currently_below
+    save_state(state)
 
 
 def main():
-    log.info("VIBE Pass árfigyelő v5 elindult.")
+    log.info("VIBE Pass árfigyelő v6 elindult.")
     log.info(f"Küszöb: {TARGET_PRICE:.0f} lei | Ellenőrzés: {CHECK_INTERVAL}s")
     if not BOT_TOKEN or not CHAT_ID:
         log.error("HIBA: Hiányzó TELEGRAM_BOT_TOKEN vagy TELEGRAM_CHAT_ID!")
         return
     send_telegram(
-        f"✅ <b>VIBE árfigyelő v5 elindult!</b>\n\n"
+        f"✅ <b>VIBE árfigyelő v6 elindult!</b>\n\n"
         f"Figyelt oldal: {URL}\n"
         f"Értesítési küszöb: {TARGET_PRICE:.0f} lei\n"
-        f"Ellenőrzési időköz: {CHECK_INTERVAL} másodperc"
+        f"Ellenőrzési időköz: {CHECK_INTERVAL} másodperc\n\n"
+        f"Értesítesz ha az ár küszöb alá esik és ha visszamegy."
     )
     while True:
         try:
